@@ -1,0 +1,60 @@
+#include <SoftwareSerial.h>
+
+// Define SoftwareSerial for both ultrasonic sensors
+SoftwareSerial sensor1(10, 11);  // RX = 10, TX = 11
+SoftwareSerial sensor2(8, 9);    // RX = 8, TX = 9
+
+unsigned char data_buffer[4] = {0};
+
+void setup() {
+    Serial.begin(115200);
+    sensor1.begin(9600);
+    sensor2.begin(9600);
+}
+
+// Function to read distance from a sensor with improved timeout handling
+int readDistance(SoftwareSerial &sensor) {
+    int distance = -1;
+    sensor.listen();  // Activate the selected sensor
+    delay(50);  // Allow time for the sensor switch
+
+    for (int attempt = 0; attempt < 2; attempt++) {  // Read twice for stability
+        unsigned long start_time = millis();
+        while (sensor.available() < 4) {  
+            if (millis() - start_time > 100) return -1;  // Increased timeout
+        }
+
+        if (sensor.read() == 0xFF) {  // Check for the start byte
+            data_buffer[0] = 0xFF;
+            for (int i = 1; i < 4; i++) {
+                data_buffer[i] = sensor.read();
+            }
+
+            unsigned char checksum = data_buffer[0] + data_buffer[1] + data_buffer[2];
+            if (data_buffer[3] == checksum) {
+                distance = (data_buffer[1] << 8) + data_buffer[2];  // Convert bytes to distance
+                if (distance > 4000 || distance < 20) distance = -1;  // Ignore unrealistic values
+            }
+        }
+
+        if (distance != -1) break;  // If valid data, stop reading
+    }
+
+    return distance;
+}
+
+void loop() {
+    int d1 = readDistance(sensor1);
+    delay(100);  // Small delay to prevent conflicts
+    int d2 = readDistance(sensor2);
+
+    Serial.print("Sensor 1: ");
+    Serial.print(d1 != -1 ? String(d1) + " mm" : "No data");
+    Serial.print("  |  ");
+
+    Serial.print("Sensor 2: ");
+    Serial.println(d2 != -1 ? String(d2) + " mm" : "No data");
+
+    delay(100);
+}
+
