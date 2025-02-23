@@ -1,0 +1,190 @@
+#include <SoftwareSerial.h>
+
+// Define SoftwareSerial for both ultrasonic sensors
+SoftwareSerial sensor1(10, 11);  // RX = 10, TX = 11
+SoftwareSerial sensor2(8, 9);    // RX = 8, TX = 9
+
+unsigned char data_buffer[4] = {0};
+
+void setup() {
+    Serial.begin(115200);
+
+    // Start SoftwareSerial communication for both sensors
+    sensor1.begin(9600);
+    sensor2.begin(9600);
+}
+
+// Function to read distance from a sensor (with error handling)
+int readDistance(SoftwareSerial &sensor) {
+    int distance = -1;
+    sensor.listen();  // Activate the selected sensor
+
+    unsigned long start_time = millis();
+    while (sensor.available() < 4) {  
+        if (millis() - start_time > 50) {  
+            return -1;  // Timeout to avoid infinite waiting
+        }
+    }
+
+    if (sensor.read() == 0xFF) {  // Check for the start byte
+        data_buffer[0] = 0xFF;
+        for (int i = 1; i < 4; i++) {
+            data_buffer[i] = sensor.read();
+        }
+
+        unsigned char checksum = data_buffer[0] + data_buffer[1] + data_buffer[2];
+        if (data_buffer[3] == checksum) {
+            distance = (data_buffer[1] << 8) + data_buffer[2];  // Convert bytes to distance
+
+            // Remove unrealistic values
+            if (distance > 4000 || distance < 20) {  
+                return -1;  
+            }
+        }
+    }
+    
+    return distance;
+}
+
+// Median filter for noise reduction
+int medianFilter(int a, int b, int c) {
+    if ((a > b) != (a > c)) return a;
+    else if ((b > a) != (b > c)) return b;
+    else return c;
+}
+
+void loop() {
+    int d1_a = readDistance(sensor1);
+    delay(50);
+    int d1_b = readDistance(sensor1);
+    delay(50);
+    int d1_c = readDistance(sensor1);
+    delay(50);
+    
+    int d2_a = readDistance(sensor2);
+    delay(50);
+    int d2_b = readDistance(sensor2);
+    delay(50);
+    int d2_c = readDistance(sensor2);
+    delay(50);
+
+    int distance1 = medianFilter(d1_a, d1_b, d1_c);
+    int distance2 = medianFilter(d2_a, d2_b, d2_c);
+
+    Serial.print("Sensor 1: ");
+    Serial.print((distance1 != -1) ? String(distance1) + " mm" : "No data");
+    Serial.print("  |  ");
+
+    Serial.print("Sensor 2: ");
+    Serial.println((distance2 != -1) ? String(distance2) + " mm" : "No data");
+
+    delay(100);
+}
+
+// #include <SoftwareSerial.h>
+
+// // Define SoftwareSerial for both sensors
+// SoftwareSerial sensor1(10, 11);  // RX = 10, TX = 11
+// SoftwareSerial sensor2(8, 9);    // RX = 8, TX = 9
+
+// unsigned char data_buffer[4] = {0};
+
+// void setup() {
+//     Serial.begin(115200);
+
+//     // Start SoftwareSerial communication for both sensors
+//     sensor1.begin(9600);
+//     sensor2.begin(9600);
+// }
+
+// int readDistance(SoftwareSerial &sensor) {
+//     int distance = -1;
+//     sensor.listen();  // Switch to this sensor
+
+//     unsigned long start_time = millis();
+//     while (sensor.available() < 4) {  
+//         if (millis() - start_time > 50) {  
+//             return -1;  // Timeout if no data received
+//         }
+//     }
+
+//     if (sensor.read() == 0xFF) {  // Check for the start byte
+//         data_buffer[0] = 0xFF;
+//         for (int i = 1; i < 4; i++) {
+//             data_buffer[i] = sensor.read();
+//         }
+
+//         unsigned char checksum = data_buffer[0] + data_buffer[1] + data_buffer[2];
+//         if (data_buffer[3] == checksum) {
+//             distance = (data_buffer[1] << 8) + data_buffer[2];  // Convert bytes to distance
+//         }
+//     }
+
+//     return distance;
+// }
+
+// void loop() {
+//     int distance1 = readDistance(sensor1);
+//     delay(50);  // Short delay to allow proper switching
+//     int distance2 = readDistance(sensor2);
+
+//     Serial.print("Sensor 1: ");
+//     Serial.print((distance1 != -1) ? String(distance1) + " mm" : "No data");
+//     Serial.print("  |  ");
+
+//     Serial.print("Sensor 2: ");
+//     Serial.println((distance2 != -1) ? String(distance2) + " mm" : "No data");
+
+//     delay(100);
+// }
+
+
+//  /*
+// // #include <SoftwareSerial.h>
+
+// // SoftwareS   erial sensor1(10, 11);  // RX = 10, TX = 11
+// // SoftwareSerial sensor2(8, 9);    // RX = 8, TX = 9
+
+// // unsigned char data_buffer[4] = {0};
+
+// // void setup() {
+// //     Serial.begin(115200);
+// // }
+
+// // int readDistance(SoftwareSerial &sensor) {
+// //     sensor.begin(9600);  // Initialize only the active sensor
+// //     delay(50);  // Allow stabilization
+
+// //     if (sensor.available() > 0) {
+// //         delay(5);
+// //         if (sensor.read() == 0xFF) {
+// //             data_buffer[0] = 0xFF;
+// //             for (int i = 1; i < 4; i++) {
+// //                 data_buffer[i] = sensor.read();
+// //             }
+// //             unsigned char CS = data_buffer[0] + data_buffer[1] + data_buffer[2];
+// //             if (data_buffer[3] == CS) {
+// //                 sensor.end();  // Disable sensor after reading
+// //                 return (data_buffer[1] << 8) + data_buffer[2];
+// //             }
+// //         }
+// //     }
+// //     sensor.end();  // Disable sensor after attempt
+// //     return -1;
+// // }
+
+// // void loop() {
+// //     int distance1 = readDistance(sensor1);
+// //     delay(50);
+// //     int distance2 = readDistance(sensor2);
+
+// //     Serial.print("Sensor 1: ");
+// //     Serial.print((distance1 != -1) ? String(distance1) + " mm" : "No data");
+// //     Serial.print("  |  ");
+
+// //     Serial.print("Sensor 2: ");
+// //     Serial.println((distance2 != -1) ? String(distance2) + " mm" : "No data");
+// // delay(50);
+    
+//  }
+// */
